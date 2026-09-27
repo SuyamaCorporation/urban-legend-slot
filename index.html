@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>都市伝説 スロットマシン</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .reel-container { height: 60px; overflow: hidden; }
+  .reel-track { transition: none; }
+  .reel-track.spinning { animation: spin 0.08s linear infinite; }
+  @keyframes spin {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-60px); }
+  }
+  .reel-item { height: 60px; display: flex; align-items: center; justify-content: center; }
+  .slot-machine { background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460); }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-4px)} 75%{transform:translateX(4px)} }
+  .shaking { animation: shake 0.1s ease 3; }
+</style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4">
+<div class="max-w-2xl mx-auto">
+  <h1 class="text-2xl font-bold text-center mb-1 text-purple-400">🎰 都市伝説 スロットマシン</h1>
+  <p class="text-center text-gray-400 text-sm mb-6">場所×現象×原因でランダム都市伝説を生成</p>
+
+  <!-- Slot Machine -->
+  <div class="slot-machine rounded-2xl p-6 mb-6 shadow-2xl border border-purple-800">
+    <div class="flex gap-4 justify-center mb-6">
+      <!-- Reel 1: Place -->
+      <div class="flex-1">
+        <div class="text-center text-xs text-gray-400 mb-2">場所</div>
+        <div class="bg-gray-900 border-2 border-purple-600 rounded-lg reel-container">
+          <div id="reel1" class="reel-track text-center text-sm font-bold text-yellow-300"></div>
+        </div>
+      </div>
+      <!-- Reel 2: Phenomenon -->
+      <div class="flex-1">
+        <div class="text-center text-xs text-gray-400 mb-2">現象</div>
+        <div class="bg-gray-900 border-2 border-purple-600 rounded-lg reel-container">
+          <div id="reel2" class="reel-track text-center text-sm font-bold text-cyan-300"></div>
+        </div>
+      </div>
+      <!-- Reel 3: Cause -->
+      <div class="flex-1">
+        <div class="text-center text-xs text-gray-400 mb-2">原因</div>
+        <div class="bg-gray-900 border-2 border-purple-600 rounded-lg reel-container">
+          <div id="reel3" class="reel-track text-center text-sm font-bold text-red-300"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-center">
+      <button id="spinBtn"
+        class="px-12 py-3 bg-purple-600 hover:bg-purple-500 rounded-full text-xl font-bold shadow-lg shadow-purple-900 transition-all active:scale-95"
+        aria-label="スロットを回す">
+        🎲 回す
+      </button>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="resultBox" class="bg-gray-800 rounded-lg p-4 mb-4 hidden">
+    <div class="text-gray-400 text-xs mb-2">生成された都市伝説</div>
+    <p id="legendText" class="text-gray-100 text-base leading-relaxed mb-3"></p>
+    <div class="flex items-center gap-3">
+      <div class="text-yellow-400 text-sm" id="fearStars"></div>
+      <div class="text-gray-400 text-xs" id="fearLabel"></div>
+      <button id="saveBtn" class="ml-auto px-4 py-1 bg-purple-700 hover:bg-purple-600 rounded text-sm" aria-label="この伝説を保存">保存</button>
+    </div>
+  </div>
+
+  <!-- Saved -->
+  <div class="bg-gray-800 rounded-lg p-4">
+    <div class="flex justify-between items-center mb-3">
+      <div class="text-gray-400 text-xs">保存した伝説（最大10件）</div>
+      <button id="clearSavedBtn" class="text-xs text-red-400 hover:text-red-300" aria-label="保存済みをクリア">クリア</button>
+    </div>
+    <div id="savedList" class="space-y-2 max-h-48 overflow-y-auto"></div>
+  </div>
+</div>
+
+<script>
+const PLACES = [
+  '廃校の音楽室','深夜の踏切','山奥の廃トンネル','地下鉄の終点駅','海沿いの灯台',
+  '昭和のラブホテル','農村の古い鳥居','都心のビルの最上階','川沿いの公園','古びた神社の境内',
+  '閉鎖された遊園地','工場跡地の倉庫','雪山のロッジ','漁村の波止場','大学病院の旧棟',
+  '山中の廃村','駅のホームの端','深夜のコンビニ','閑静な住宅街の角','森の中の泉',
+  '古戦場跡の広場','海底洞窟の入り口','廃墟のショッピングモール','山寺の石段','夜の動物園'
+,'宿場町の旧街道','廃炭鉱の坑道入口','半島の突端灯台','山岳地帯の避難小屋','砂漠の廃神殿'
+];
+const PHENOMENA = [
+  '真夜中に子供の笑い声が聞こえる','鏡に知らない人の顔が映る','携帯が圏外なのに着信がある',
+  '同じ夢を見た人が集まる','雨が降ると泣き声がする','足跡が途中で消えている',
+  '古い写真に写っていない人の影がある','時計が必ず3時に止まる','白いワンピースの女性が現れる',
+  '壁の染みが毎夜形を変える','懐中電灯が近づくと消える','風がないのに木の葉が揺れる',
+  '同じ言葉を繰り返す老人が現れる','地面から何かが叩く音がする','特定の周波数の音が聞こえる',
+  'スマホのカメラに霞がかかる','植物が一晩で枯れる','誰もいないのに足音がする',
+  '飼い犬が吠え続け近寄らない','縦穴の底から光が見える','温度が局所的に下がる',
+  '見知らぬ子供が手招きする','井戸から甘い香りがする','看板の文字が翌朝変わっている',
+  '幽霊バスが停留所に現れる','砂の上に手形が刻まれる','電灯が不規則に点滅する',
+  '浜辺に錆びた鍵が毎朝現れる','深夜に誰かが名前を呼ぶ声がする','橋の上で自分の後ろ姿が見える'
+];
+const CAUSES = [
+  '昔ここで集団自決があったから','戦時中に埋められた遺体が眠っているから','地下に古い呪術師の墓がある',
+  '江戸時代の処刑場があった場所だから','幽閉された姫君の怨念が残るから','昭和の連続失踪事件の現場',
+  '化学工場の廃液が土に染みているから','異次元への扉が開いているから','地磁気異常が人の脳に影響するから',
+  'かつて遭難した登山者の霊が集まるから','謎の新興宗教の儀式が行われたから','古代の呪いの石碑が埋まっているから',
+  '平行世界の扉が薄くなっているから','廃棄された軍用実験施設の名残','一族皆殺しの血の因縁',
+  '千年前の祟り神の封印が緩んでいるから','近くの河川に謎の物質が流れ込んでいるから',
+  '強い念が場に焼き付いているから','量子的観測効果が集積しているから','土地の磁場が特殊な共鳴を起こすから',
+  '数百年前に疫病で全滅した村の跡','タイムスリップ現象が局所的に発生するから','深海から何かが這い上がっているから',
+  '人工衛星の電磁波が集中するポイント','古い地図にない地下水脈が交差するから','誰かが呪いの人形を埋めたから',
+  '龍脈が交差する特殊な地形','政府が秘密裏に実験を続けているから','AIが生成した疑似記憶が拡散したから',
+  '感情残留エネルギーが蓄積しているから'
+];
+
+// fear scores per index (0-4)
+const FEAR_PLACE  = [4,3,5,4,3,2,4,3,2,4,5,4,4,3,4,5,3,2,3,4,4,4,5,4,3,3,5,4,4,5];
+const FEAR_PHEN   = [3,4,3,3,3,4,4,5,4,4,3,3,4,4,3,3,4,3,2,4,4,4,3,3,4,3,3,3,4,4];
+const FEAR_CAUSE  = [5,5,5,5,5,4,3,4,2,4,4,5,3,4,5,5,3,4,2,3,5,3,4,2,3,5,4,4,2,4];
+
+let currentResult = null;
+let spinning = false;
+
+function getStars(score) {
+  const n = Math.min(5, Math.max(1, Math.round(score)));
+  return '★'.repeat(n) + '☆'.repeat(5 - n);
+}
+
+function startReel(reelEl) {
+  reelEl.innerHTML = '';
+  reelEl.classList.add('spinning');
+}
+
+function stopReel(reelEl, text, color) {
+  reelEl.classList.remove('spinning');
+  reelEl.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = 'reel-item text-sm font-bold px-2 text-center';
+  item.style.color = color;
+  item.textContent = text;
+  reelEl.appendChild(item);
+}
+
+document.getElementById('spinBtn').addEventListener('click', () => {
+  if (spinning) return;
+  spinning = true;
+  const btn = document.getElementById('spinBtn');
+  btn.disabled = true;
+
+  const r1 = document.getElementById('reel1');
+  const r2 = document.getElementById('reel2');
+  const r3 = document.getElementById('reel3');
+
+  startReel(r1); startReel(r2); startReel(r3);
+
+  const pi = Math.floor(Math.random() * PLACES.length);
+  const ni = Math.floor(Math.random() * PHENOMENA.length);
+  const ci = Math.floor(Math.random() * CAUSES.length);
+
+  setTimeout(() => stopReel(r1, PLACES[pi], '#fde68a'), 800);
+  setTimeout(() => stopReel(r2, PHENOMENA[ni], '#67e8f9'), 1200);
+  setTimeout(() => {
+    stopReel(r3, CAUSES[ci], '#fca5a5');
+
+    const fearRaw = (FEAR_PLACE[pi] + FEAR_PHEN[ni] + FEAR_CAUSE[ci]) / 3;
+    const fearScore = Math.round(fearRaw);
+    const legend = `${PLACES[pi]}では、${PHENOMENA[ni]}という噂がある。原因は${CAUSES[ci]}と言われている。`;
+
+    currentResult = { place: PLACES[pi], phen: PHENOMENA[ni], cause: CAUSES[ci], legend, fearScore };
+
+    const box = document.getElementById('resultBox');
+    box.classList.remove('hidden');
+    box.classList.add('shaking');
+    setTimeout(() => box.classList.remove('shaking'), 400);
+
+    document.getElementById('legendText').textContent = legend;
+    document.getElementById('fearStars').textContent = `怖さ: ${getStars(fearScore)}`;
+    const labels = ['','穏やか','ちょっと怖い','怖い','かなり怖い','最恐'];
+    document.getElementById('fearLabel').textContent = labels[fearScore] || '';
+
+    spinning = false;
+    btn.disabled = false;
+  }, 1600);
+});
+
+document.getElementById('saveBtn').addEventListener('click', () => {
+  if (!currentResult) return;
+  let saved = JSON.parse(localStorage.getItem('urbanLegends') || '[]');
+  if (saved.length >= 10) saved.pop();
+  saved.unshift({ ...currentResult, time: new Date().toLocaleString('ja-JP') });
+  localStorage.setItem('urbanLegends', JSON.stringify(saved));
+  renderSaved();
+});
+
+document.getElementById('clearSavedBtn').addEventListener('click', () => {
+  localStorage.removeItem('urbanLegends');
+  renderSaved();
+});
+
+function renderSaved() {
+  const saved = JSON.parse(localStorage.getItem('urbanLegends') || '[]');
+  const el = document.getElementById('savedList');
+  el.innerHTML = '';
+  if (!saved.length) {
+    const d = document.createElement('div');
+    d.className = 'text-gray-500 text-xs';
+    d.textContent = '保存なし';
+    el.appendChild(d);
+    return;
+  }
+  saved.forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'bg-gray-700 rounded p-2 text-xs';
+    const p = document.createElement('p');
+    p.className = 'text-gray-200 mb-1';
+    p.textContent = s.legend;
+    const meta = document.createElement('div');
+    meta.className = 'flex justify-between text-gray-500';
+    const stars = document.createElement('span');
+    stars.className = 'text-yellow-400';
+    stars.textContent = getStars(s.fearScore);
+    const time = document.createElement('span');
+    time.textContent = s.time;
+    meta.appendChild(stars);
+    meta.appendChild(time);
+    d.appendChild(p);
+    d.appendChild(meta);
+    el.appendChild(d);
+  });
+}
+
+// Init reels
+function initReel(reelEl, items, color) {
+  reelEl.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = 'reel-item text-sm font-bold px-2 text-center';
+  item.style.color = color;
+  item.textContent = items[0];
+  reelEl.appendChild(item);
+}
+initReel(document.getElementById('reel1'), PLACES, '#fde68a');
+initReel(document.getElementById('reel2'), PHENOMENA, '#67e8f9');
+initReel(document.getElementById('reel3'), CAUSES, '#fca5a5');
+renderSaved();
+</script>
+</body>
+</html>
